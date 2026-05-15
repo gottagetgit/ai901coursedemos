@@ -28,9 +28,11 @@ def build_client() -> tuple[ChatCompletionsClient, str]:
     endpoint = get_required("AZURE_FOUNDRY_ENDPOINT")
     api_key = get_required("AZURE_FOUNDRY_API_KEY")
     model = get_required("AZURE_FOUNDRY_MODEL")
+    api_version = os.getenv("AZURE_FOUNDRY_API_VERSION", "2024-05-01-preview")
     client = ChatCompletionsClient(
         endpoint=endpoint,
         credential=AzureKeyCredential(api_key),
+        api_version=api_version,
     )
     return client, model
 
