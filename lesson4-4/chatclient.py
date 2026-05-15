@@ -1,6 +1,8 @@
 import os
 import sys
 from dotenv import load_dotenv
+
+sys.stdout.reconfigure(encoding="utf-8")
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 
@@ -23,33 +25,34 @@ def get_required(key: str) -> str:
     return value
 
 
-def resolve_agent_id(client: AIProjectClient, agent_name: str) -> str:
-    for agent in client.agents.list_agents():
-        if agent.name == agent_name:
-            return agent.id
-    print(f"Error: no agent named '{agent_name}' found in this project.")
-    sys.exit(1)
-
-
-def build_client() -> tuple[AIProjectClient, str, str]:
+def build_clients():
     endpoint = get_required("AZURE_FOUNDRY_ENDPOINT")
     agent_name = get_required("AZURE_FOUNDRY_AGENT_NAME")
     agent_version = get_required("AZURE_FOUNDRY_AGENT_VERSION")
-    client = AIProjectClient(
+
+    project_client = AIProjectClient(
         endpoint=endpoint,
         credential=DefaultAzureCredential(),
     )
-    agent_id = resolve_agent_id(client, agent_name)
-    return client, agent_name, agent_version, agent_id
+    openai_client = project_client.get_openai_client()
+    return openai_client, agent_name, agent_version
 
 
 def main():
     load_config()
-    client, agent_name, agent_version, agent_id = build_client()
+    openai_client, agent_name, agent_version = build_clients()
 
-    thread = client.agents.create_thread()
     print(f"Chat client connected to agent: {agent_name} v{agent_version}")
     print("Type your message and press Enter. Press Ctrl+C to exit.\n")
+
+    agent_reference = {
+        "agent_reference": {
+            "name": agent_name,
+            "version": agent_version,
+            "type": "agent_reference",
+        }
+    }
+    previous_response_id = None
 
     while True:
         try:
@@ -62,24 +65,17 @@ def main():
             continue
 
         try:
-            client.agents.create_message(
-                thread_id=thread.id,
-                role="user",
-                content=user_input,
-            )
-            run = client.agents.create_and_process_run(
-                thread_id=thread.id,
-                assistant_id=agent_id,
-            )
-            if run.status == "failed":
-                print(f"\nError: agent run failed — {run.last_error}\n")
-                continue
+            kwargs = {
+                "input": [{"role": "user", "content": user_input}],
+                "extra_body": agent_reference,
+            }
+            if previous_response_id:
+                kwargs["previous_response_id"] = previous_response_id
 
-            messages = client.agents.list_messages(thread_id=thread.id)
-            for msg in messages.data:
-                if msg.role == "assistant":
-                    print(f"\nAssistant: {msg.content[0].text.value}\n")
-                    break
+            response = openai_client.responses.create(**kwargs)
+            previous_response_id = response.id
+
+            print(f"\nAssistant: {response.output_text}\n")
         except Exception as e:
             print(f"\nError: {e}\n")
 
