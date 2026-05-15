@@ -1,9 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
-from azure.core.credentials import AzureKeyCredential
+from openai import OpenAI
 
 CONFIG_FILE = "config.env"
 
@@ -24,18 +22,13 @@ def get_required(key: str) -> str:
     return value
 
 
-def build_client() -> tuple[ChatCompletionsClient, str]:
-    endpoint = get_required("AZURE_FOUNDRY_ENDPOINT")
+def build_client() -> tuple[OpenAI, str]:
+    endpoint = get_required("AZURE_FOUNDRY_ENDPOINT").rstrip("/")
     api_key = get_required("AZURE_FOUNDRY_API_KEY")
     model = get_required("AZURE_FOUNDRY_MODEL")
-    kwargs = {}
-    api_version = os.getenv("AZURE_FOUNDRY_API_VERSION")
-    if api_version:
-        kwargs["api_version"] = api_version
-    client = ChatCompletionsClient(
-        endpoint=endpoint,
-        credential=AzureKeyCredential(api_key),
-        **kwargs,
+    client = OpenAI(
+        base_url=f"{endpoint}",
+        api_key=api_key,
     )
     return client, model
 
@@ -45,7 +38,7 @@ def main():
     client, model = build_client()
 
     system_prompt = os.getenv("SYSTEM_PROMPT", "You are a helpful assistant.")
-    conversation = [SystemMessage(content=system_prompt)]
+    conversation = [{"role": "system", "content": system_prompt}]
 
     print(f"Chat client connected to model: {model}")
     print("Type your message and press Enter. Press Ctrl+C to exit.\n")
@@ -60,15 +53,15 @@ def main():
         if not user_input:
             continue
 
-        conversation.append(UserMessage(content=user_input))
+        conversation.append({"role": "user", "content": user_input})
 
         try:
-            response = client.complete(
-                messages=conversation,
+            response = client.chat.completions.create(
                 model=model,
+                messages=conversation,
             )
             assistant_message = response.choices[0].message.content
-            conversation.append(AssistantMessage(content=assistant_message))
+            conversation.append({"role": "assistant", "content": assistant_message})
             print(f"\nAssistant: {assistant_message}\n")
         except Exception as e:
             print(f"\nError calling model: {e}\n")
@@ -77,3 +70,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
