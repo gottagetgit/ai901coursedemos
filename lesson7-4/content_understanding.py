@@ -113,11 +113,16 @@ def get_audio_content(result):
 
 def dump_contents(result):
     """Print what the service actually returned so we can see its shape."""
+    import json
+
     contents = result.contents or []
     print(f"  (diagnostic) analyzer returned {len(contents)} content item(s)")
-    for i, content in enumerate(contents):
-        keys = list(content.keys()) if hasattr(content, "keys") else dir(content)
-        print(f"    [{i}] kind={content.get('kind', '?')!r} keys={keys}")
+    print(f"  (diagnostic) warnings: {result.warnings}")
+    try:
+        print("  (diagnostic) full result:")
+        print(json.dumps(result.as_dict(), indent=2, default=str))
+    except Exception as e:
+        print(f"  (diagnostic) could not serialize result: {e}")
 
 
 def write_vtt(audio, out_path: str):
