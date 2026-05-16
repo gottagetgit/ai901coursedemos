@@ -17,9 +17,12 @@ VTT_OUTPUT = "example3.vtt"     # subtitles we generate from the audio
 
 # Prebuilt analyzers provided by the service (no training required).
 # prebuilt-invoice extracts structured invoice fields from PDFs *and* images.
-# prebuilt-audioSearch returns a transcript (with timing) and a summary.
+# prebuilt-audio is the base audio analyzer: it transcribes speech with
+# per-phrase timing and speakers (no generative model deployment required).
+# (The RAG-style prebuilt-audioSearch needs a connected chat model and
+# returns empty contents without one, so we use prebuilt-audio here.)
 INVOICE_ANALYZER = "prebuilt-invoice"
-AUDIO_ANALYZER = "prebuilt-audioSearch"
+AUDIO_ANALYZER = "prebuilt-audio"
 
 
 def load_config():

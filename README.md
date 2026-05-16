@@ -41,6 +41,6 @@ Config values: `AZURE_VISION_ENDPOINT`, `AZURE_VISION_KEY`.
 
 ## [lesson7-4](lesson7-4/) — Content Understanding: information extraction
 
-A lightweight information-extraction demo built on the `azure-ai-contentunderstanding` SDK (GA, service API version 2025-11-01). The script (`content_understanding.py`) sends three local files to prebuilt analyzers via `begin_analyze_binary`: `example1.pdf` and `example2.jpg` (both invoices) go through `prebuilt-invoice` and their extracted fields are printed, and `example3.mp3` (a recorded course lesson) goes through `prebuilt-audioSearch` — it prints the summary and writes the timed transcript out as a `example3.vtt` subtitle file. The SDK handles the long-running submit-and-poll operation. Authenticates with an endpoint + key.
+A lightweight information-extraction demo built on the `azure-ai-contentunderstanding` SDK (GA, service API version 2025-11-01). The script (`content_understanding.py`) sends three local files to prebuilt analyzers via `begin_analyze_binary`: `example1.pdf` and `example2.jpg` (both invoices) go through `prebuilt-invoice` and their extracted fields are printed, and `example3.mp3` (a recorded course lesson) goes through `prebuilt-audio` — it transcribes the speech and writes the timed transcript out as a `example3.vtt` subtitle file. The SDK handles the long-running submit-and-poll operation. Authenticates with an endpoint + key.
 
 Config values: `AZURE_CONTENT_UNDERSTANDING_ENDPOINT`, `AZURE_CONTENT_UNDERSTANDING_KEY`.
