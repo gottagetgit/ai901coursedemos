@@ -11,7 +11,7 @@ CONFIG_FILE = "config.env"
 # Files we expect to find next to this script. Drop your own samples in with
 # these names before running.
 INVOICE_PDF = "example1.pdf"   # an invoice as a PDF document
-INVOICE_IMAGE = "example2.png"  # an invoice as an image
+INVOICE_IMAGE = "example2.jpg"  # an invoice as an image
 AUDIO_FILE = "example3.mp3"     # a recorded course lesson
 VTT_OUTPUT = "example3.vtt"     # subtitles we generate from the audio
 
