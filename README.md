@@ -21,6 +21,12 @@ Same interactive chat experience, but instead of calling a raw model it invokes 
 
 Config values: `AZURE_FOUNDRY_ENDPOINT` (project endpoint), `AZURE_FOUNDRY_AGENT_NAME`, `AZURE_FOUNDRY_AGENT_VERSION`.
 
+## [lesson5-1](lesson5-1/) — Text analytics: summarization, NER, key phrases
+
+Runs a sample article through the Azure AI Language service using the `azure-ai-textanalytics` SDK and prints three results: an extractive summary, the named entities it found (with category and confidence), and the extracted key phrases. The script (`textanalytics.py`) is a single linear flow with no interactive prompt — meant as a readable reference for students. Authenticates with an endpoint + key.
+
+Config values: `AZURE_LANGUAGE_ENDPOINT`, `AZURE_LANGUAGE_KEY`.
+
 ## [lesson5-3](lesson5-3/) — Live speech transcription
 
 Captures audio from your default microphone and streams it to the Azure AI Foundry Speech service, printing both interim partial results and finalized phrases to the console in real time. Press Enter to stop.
