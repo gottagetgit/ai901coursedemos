@@ -97,10 +97,27 @@ def format_timestamp(ms: int) -> str:
 
 
 def get_audio_content(result):
-    for content in result.contents:
+    for content in result.contents or []:
+        # The model is dict-like; match on the 'kind' discriminator rather
+        # than isinstance, and also accept anything carrying a transcript.
         if isinstance(content, AudioVisualContent):
             return content
+        if str(content.get("kind", "")) == "audioVisual":
+            return content
+        if content.get("transcriptPhrases") or getattr(
+            content, "transcript_phrases", None
+        ):
+            return content
     return None
+
+
+def dump_contents(result):
+    """Print what the service actually returned so we can see its shape."""
+    contents = result.contents or []
+    print(f"  (diagnostic) analyzer returned {len(contents)} content item(s)")
+    for i, content in enumerate(contents):
+        keys = list(content.keys()) if hasattr(content, "keys") else dir(content)
+        print(f"    [{i}] kind={content.get('kind', '?')!r} keys={keys}")
 
 
 def write_vtt(audio, out_path: str):
@@ -150,6 +167,7 @@ def main():
         audio = get_audio_content(audio_result)
         if audio is None:
             print("  No audio content returned.")
+            dump_contents(audio_result)
         else:
             print_audio_summary(audio)
             write_vtt(audio, VTT_OUTPUT)
