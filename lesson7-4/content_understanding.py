@@ -1,13 +1,12 @@
 import os
 import sys
-import time
 from dotenv import load_dotenv
-import requests
+from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import AzureError
+from azure.ai.contentunderstanding import ContentUnderstandingClient
+from azure.ai.contentunderstanding.models import AudioVisualContent
 
 CONFIG_FILE = "config.env"
-
-# Content Understanding GA API version.
-API_VERSION = "2025-11-01"
 
 # Files we expect to find next to this script. Drop your own samples in with
 # these names before running.
@@ -21,10 +20,6 @@ VTT_OUTPUT = "example3.vtt"     # subtitles we generate from the audio
 # prebuilt-audioSearch returns a transcript (with timing) and a summary.
 INVOICE_ANALYZER = "prebuilt-invoice"
 AUDIO_ANALYZER = "prebuilt-audioSearch"
-
-# How long to wait for an analysis to finish before giving up.
-POLL_INTERVAL_SECONDS = 2
-POLL_MAX_ATTEMPTS = 60
 
 
 def load_config():
@@ -43,6 +38,15 @@ def get_required(key: str) -> str:
     return value
 
 
+def build_client() -> ContentUnderstandingClient:
+    endpoint = get_required("AZURE_CONTENT_UNDERSTANDING_ENDPOINT").rstrip("/")
+    key = get_required("AZURE_CONTENT_UNDERSTANDING_KEY")
+    return ContentUnderstandingClient(
+        endpoint=endpoint,
+        credential=AzureKeyCredential(key),
+    )
+
+
 def read_file(path: str) -> bytes:
     if not os.path.exists(path):
         print(f"Error: file '{path}' not found next to this script.")
@@ -51,76 +55,36 @@ def read_file(path: str) -> bytes:
         return f.read()
 
 
-def analyze_file(endpoint: str, key: str, analyzer_id: str, path: str) -> dict:
+def analyze_file(client: ContentUnderstandingClient, analyzer_id: str, path: str):
     """Send a local file to a prebuilt analyzer and wait for the result.
 
-    Content Understanding is asynchronous: the first POST returns a
-    202 with an Operation-Location header; we then poll that URL until
-    the status is 'succeeded'.
+    Content Understanding analysis is a long-running operation. The SDK's
+    begin_analyze_binary() returns a poller; calling .result() blocks
+    until the service is done and hands back an AnalysisResult.
     """
     file_bytes = read_file(path)
-
-    analyze_url = (
-        f"{endpoint}/contentunderstanding/analyzers/"
-        f"{analyzer_id}:analyzeBinary?api-version={API_VERSION}"
-    )
-    headers = {
-        "Ocp-Apim-Subscription-Key": key,
-        "Content-Type": "application/octet-stream",
-    }
-
-    response = requests.post(analyze_url, headers=headers, data=file_bytes)
-    response.raise_for_status()
-
-    operation_location = response.headers.get("operation-location")
-    if not operation_location:
-        raise RuntimeError("Service did not return an Operation-Location header.")
-
-    poll_headers = {"Ocp-Apim-Subscription-Key": key}
-    for _ in range(POLL_MAX_ATTEMPTS):
-        poll = requests.get(operation_location, headers=poll_headers)
-        poll.raise_for_status()
-        body = poll.json()
-        status = body.get("status", "").lower()
-        if status == "succeeded":
-            return body
-        if status == "failed":
-            raise RuntimeError(f"Analysis failed: {body}")
-        time.sleep(POLL_INTERVAL_SECONDS)
-
-    raise TimeoutError("Timed out waiting for the analysis to finish.")
+    poller = client.begin_analyze_binary(analyzer_id, binary_input=file_bytes)
+    return poller.result()
 
 
-def field_value(field: dict):
-    """Pull the human-readable value out of a Content Understanding field.
-
-    Each field looks like {"type": "string", "valueString": "Contoso"} —
-    the value key always starts with 'value'.
-    """
-    for name, value in field.items():
-        if name.startswith("value"):
-            return value
-    return None
-
-
-def print_invoice_fields(label: str, result: dict):
+def print_invoice_fields(label: str, result):
     print(f"=== Extracted invoice data from '{label}' ===")
-    contents = result.get("result", {}).get("contents", [])
-    if not contents:
+    if not result.contents:
         print("  No content returned.")
         print()
         return
 
-    fields = contents[0].get("fields", {})
+    fields = result.contents[0].fields or {}
     if not fields:
         print("  No fields extracted.")
         print()
         return
 
     for name, field in fields.items():
-        value = field_value(field)
-        if value not in (None, "", [], {}):
-            print(f"  {name}: {value}")
+        # Every field exposes a generic .value regardless of its type
+        # (string, number, date, ...).
+        if field.value not in (None, "", [], {}):
+            print(f"  {name}: {field.value}")
     print()
 
 
@@ -132,27 +96,25 @@ def format_timestamp(ms: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
 
-def find_transcript_phrases(result: dict) -> list:
-    for content in result.get("result", {}).get("contents", []):
-        phrases = content.get("transcriptPhrases")
-        if phrases:
-            return phrases
-    return []
+def get_audio_content(result):
+    for content in result.contents:
+        if isinstance(content, AudioVisualContent):
+            return content
+    return None
 
 
-def write_vtt(result: dict, out_path: str):
-    phrases = find_transcript_phrases(result)
+def write_vtt(audio, out_path: str):
+    phrases = audio.transcript_phrases or []
     if not phrases:
         print("  No transcript phrases returned; cannot build subtitles.")
         return
 
     lines = ["WEBVTT", ""]
     for phrase in phrases:
-        start = format_timestamp(phrase.get("startTimeMs", 0))
-        end = format_timestamp(phrase.get("endTimeMs", 0))
-        speaker = phrase.get("speaker")
-        text = phrase.get("text", "")
-        cue_text = f"<v {speaker}>{text}" if speaker else text
+        start = format_timestamp(phrase.start_time_ms)
+        end = format_timestamp(phrase.end_time_ms)
+        text = phrase.text or ""
+        cue_text = f"<v {phrase.speaker}>{text}" if phrase.speaker else text
         lines.append(f"{start} --> {end}")
         lines.append(cue_text)
         lines.append("")
@@ -162,42 +124,39 @@ def write_vtt(result: dict, out_path: str):
     print(f"  Wrote {len(phrases)} subtitle cues to '{out_path}'")
 
 
-def print_audio_summary(result: dict):
-    for content in result.get("result", {}).get("contents", []):
-        fields = content.get("fields", {})
-        summary = fields.get("Summary")
-        if summary:
-            print(f"  Summary: {field_value(summary)}")
-            return
+def print_audio_summary(audio):
+    fields = audio.fields or {}
+    summary = fields.get("Summary")
+    if summary and summary.value:
+        print(f"  Summary: {summary.value}")
 
 
 def main():
     load_config()
-    endpoint = get_required("AZURE_CONTENT_UNDERSTANDING_ENDPOINT").rstrip("/")
-    key = get_required("AZURE_CONTENT_UNDERSTANDING_KEY")
+    client = build_client()
 
     try:
         # 1. Invoice as a PDF document.
-        pdf_result = analyze_file(endpoint, key, INVOICE_ANALYZER, INVOICE_PDF)
+        pdf_result = analyze_file(client, INVOICE_ANALYZER, INVOICE_PDF)
         print_invoice_fields(INVOICE_PDF, pdf_result)
 
         # 2. Invoice as an image.
-        img_result = analyze_file(endpoint, key, INVOICE_ANALYZER, INVOICE_IMAGE)
+        img_result = analyze_file(client, INVOICE_ANALYZER, INVOICE_IMAGE)
         print_invoice_fields(INVOICE_IMAGE, img_result)
 
         # 3. Recorded course lesson -> transcript + subtitles.
         print(f"=== Transcribing audio '{AUDIO_FILE}' ===")
-        audio_result = analyze_file(endpoint, key, AUDIO_ANALYZER, AUDIO_FILE)
-        print_audio_summary(audio_result)
-        write_vtt(audio_result, VTT_OUTPUT)
+        audio_result = analyze_file(client, AUDIO_ANALYZER, AUDIO_FILE)
+        audio = get_audio_content(audio_result)
+        if audio is None:
+            print("  No audio content returned.")
+        else:
+            print_audio_summary(audio)
+            write_vtt(audio, VTT_OUTPUT)
         print()
-    except requests.HTTPError as e:
+    except AzureError as e:
         print(f"\nError calling Azure AI Content Understanding: {e}")
         print("Check AZURE_CONTENT_UNDERSTANDING_ENDPOINT / _KEY in config.env.")
-        sys.exit(1)
-    except requests.RequestException as e:
-        print(f"\nNetwork error calling Azure AI Content Understanding: {e}")
-        print("Check AZURE_CONTENT_UNDERSTANDING_ENDPOINT in config.env.")
         sys.exit(1)
 
 
