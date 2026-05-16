@@ -15,14 +15,16 @@ INVOICE_IMAGE = "example2.jpg"  # an invoice as an image
 AUDIO_FILE = "example3.mp3"     # a recorded course lesson
 VTT_OUTPUT = "example3.vtt"     # subtitles we generate from the audio
 
+# Content Understanding GA API version.
+API_VERSION = "2025-11-01"
+
 # Prebuilt analyzers provided by the service (no training required).
 # prebuilt-invoice extracts structured invoice fields from PDFs *and* images.
-# prebuilt-audio is the base audio analyzer: it transcribes speech with
-# per-phrase timing and speakers (no generative model deployment required).
-# (The RAG-style prebuilt-audioSearch needs a connected chat model and
-# returns empty contents without one, so we use prebuilt-audio here.)
+# prebuilt-callCenter transcribes speech into timed phrases (with speakers)
+# and produces a summary -- this is the analyzer Microsoft's own samples use
+# for audio, and it returns the transcript inline in the result.
 INVOICE_ANALYZER = "prebuilt-invoice"
-AUDIO_ANALYZER = "prebuilt-audio"
+AUDIO_ANALYZER = "prebuilt-callCenter"
 
 
 def load_config():
@@ -47,6 +49,7 @@ def build_client() -> ContentUnderstandingClient:
     return ContentUnderstandingClient(
         endpoint=endpoint,
         credential=AzureKeyCredential(key),
+        api_version=API_VERSION,
     )
 
 
