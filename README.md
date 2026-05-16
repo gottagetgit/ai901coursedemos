@@ -38,3 +38,9 @@ Config values: `AZURE_SPEECH_ENDPOINT`, `AZURE_SPEECH_KEY`.
 A lightweight vision demo using the `azure-ai-vision-imageanalysis` SDK. The script (`vision.py`) reads three local images and runs one capability on each: `example1.png` is captioned and tagged to identify its main object, `example2.png` is run through object detection to list every object with its bounding-box coordinates, and `example3.png` is OCR'd to print the text it contains. Supply your own images with those filenames. Authenticates with an endpoint + key.
 
 Config values: `AZURE_VISION_ENDPOINT`, `AZURE_VISION_KEY`.
+
+## [lesson7-4](lesson7-4/) — Content Understanding: information extraction
+
+A lightweight information-extraction demo built on the Azure AI Content Understanding REST API (GA, `api-version=2025-11-01`) using only `requests`. The script (`content_understanding.py`) sends three local files to prebuilt analyzers: `example1.pdf` and `example2.png` (both invoices) go through `prebuilt-invoice` and their extracted fields are printed, and `example3.mp3` (a recorded course lesson) goes through `prebuilt-audioSearch` — it prints the summary and writes the timed transcript out as a `example3.vtt` subtitle file. Demonstrates the async submit-and-poll pattern. Authenticates with an endpoint + key.
+
+Config values: `AZURE_CONTENT_UNDERSTANDING_ENDPOINT`, `AZURE_CONTENT_UNDERSTANDING_KEY`.
