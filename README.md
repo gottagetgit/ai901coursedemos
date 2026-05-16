@@ -32,3 +32,9 @@ Config values: `AZURE_LANGUAGE_ENDPOINT`, `AZURE_LANGUAGE_KEY`.
 Captures audio from your default microphone and streams it to the Azure AI Foundry Speech service, printing both interim partial results and finalized phrases to the console in real time. Press Enter to stop.
 
 Config values: `AZURE_SPEECH_ENDPOINT`, `AZURE_SPEECH_KEY`.
+
+## [lesson6-3](lesson6-3/) — Vision: object identification, detection, and OCR
+
+A lightweight vision demo using the `azure-ai-vision-imageanalysis` SDK. The script (`vision.py`) reads three local images and runs one capability on each: `example1.png` is captioned and tagged to identify its main object, `example2.png` is run through object detection to list every object with its bounding-box coordinates, and `example3.png` is OCR'd to print the text it contains. Supply your own images with those filenames. Authenticates with an endpoint + key.
+
+Config values: `AZURE_VISION_ENDPOINT`, `AZURE_VISION_KEY`.
